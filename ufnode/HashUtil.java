@@ -10,6 +10,20 @@ Executable binary forest data
 structure where every node has a global (100 times faster than sha256) secureHashed int128 name
 (TODO fork more secure hash algorithms) of a double, float, 0-8 byte string, 15 bytes of a sha256,
 pair of those, etc.
+
+An example global name is uf_d37c$70fd4a944129af73d77d2929b149bf75 which means hash algorithm name (16 bits) d37c
+then $ then an int128 whose first byte is type (such as 'g' for tiny string, 'd' for double, 'f' for float, 'F'
+for 2 floats, 'h' for the first 7 concat last 8 bytes of a sha256, 'p' for pair of 2 ufnodes etc).
+
+On a 1.6 ghz laptop in Windows 7 I got 10 million hashes per second when allocating an int[4] each time,
+and 4 million hashes when reusing the arrays.
+
+The in-progress hash algorithm uses parts of sha256 but is very different as its designed for a loop
+of size 16, 128 bit state (other than loop counter), and a constant 256 bit input and 128 bit output.
+Knowing its constant sizes allows double hashing (of concat of 2 copies of the input) to prevent
+precomputing until nearly the end of the hash and varying just the last part of the input. It therefore
+doesnt need the int[64] array of sha256 computed before the main loop. I dont think its a secureHash
+yet but is close, and I'll keep improving it, with a different hash algorithm name (like d37c) each.
 */
 public class HashUtil{
 	
