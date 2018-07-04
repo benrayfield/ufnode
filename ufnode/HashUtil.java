@@ -241,6 +241,7 @@ public class HashUtil{
 		//FIXME TODO (short)(hash(wrap("pi is"),wrap(java.lang.Math.PI))[0]>>>16);
 	
 	public static void main(String[] args){
+		System.nanoTime(); //dont count booting the clock in the stats
 		int[] left = new int[4];
 		int[] right = new int[4];
 		System.out.println(toString(hash(left,right)));
@@ -260,7 +261,7 @@ public class HashUtil{
 		//speed test
 		int[] in256 = new int[8];
 		int[] out = new int[4];
-		long start = Time.time();
+		long start = System.nanoTime();
 		int cycles = 1000000;
 		for(int i=0; i<cycles; i++){
 			for(int j=0; j<8; j++){
@@ -268,12 +269,12 @@ public class HashUtil{
 			}
 			hashFast(out, in256);
 		}
-		long end = Time.time();
+		long end = System.nanoTime();
 		double seconds = (end-start)*1e-9;
 		double hz = cycles/seconds;
 		System.out.println("hashes per second: "+hz);
 		
-		start = Time.time();
+		start = System.nanoTime();
 		left = new int[4];
 		right = new int[4];
 		for(int i=0; i<cycles; i++){
@@ -283,7 +284,7 @@ public class HashUtil{
 			}
 			hash(left, right);
 		}
-		end = Time.time();
+		end = System.nanoTime();
 		seconds = (end-start)*1e-9;
 		hz = cycles/seconds;
 		System.out.println("hashes per second when alloc arrays (strange, why is this faster?): "+hz);
