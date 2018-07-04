@@ -24,6 +24,61 @@ Knowing its constant sizes allows double hashing (of concat of 2 copies of the i
 precomputing until nearly the end of the hash and varying just the last part of the input. It therefore
 doesnt need the int[64] array of sha256 computed before the main loop. I dont think its a secureHash
 yet but is close, and I'll keep improving it, with a different hash algorithm name (like d37c) each.
+
+https://en.wikipedia.org/wiki/Hash_consing
+
+TODO implement ufmaplist (with optional homomorphic dedup requiring secret salt per computer,
+for global dedup any pair of computers which dont trust eachother will agree on)...
+Implement the ufmaplist datastruct (see code in the ufnodeOld and ufnodeapi javapackages
+in (still disorganized to be published soon hopefully) at the binary forest level
+so an ufmaplist is made of multiple binary forest nodes such as a linkedlist of its fields
+including min key, max key, long list size, ufnode.ty byte, etc,
+and different ufnode.ty (small constant set of ufnode types from which complex things are built)
+are different datastructs. An ufmaplist is an avl treemap or treelist, like in benrayfields wavetree software.
+
+TODO create a binary forest (instead of var size maplist) based variation of ufnode.Security class's opcodes
+where every func is called like [? "someNameOfTheFuncThatDescribesItVeryPrecisely]#prehopfieldname
+and prehopfieldname can after that in the same code string refer to that node in the immutable forest
+and will not differ in computing behavior when multiple people locally name the same uf128 different things.
+
+TODO lazyEvalHashing for opencl optimized matrixMultiply of RBM neuralnet (as in the paint* rbm experimental code
+I've been developing which is still too disorganized), which could hook in through sha256 of such arrays
+before and after opencl ops whose inputs and outputs are much smaller than the number of calculations done,
+or could reflect pairs of floats or single doubles each as an uf128. Ufnode in those cases
+would not be the bottleneck but is close to it so be careful to keep it fast,
+or more practically lazyEvalHashing would avoid hashing within local computer until
+save to harddrive or send across Internet (any untrusted border) need to compute uf128 recursively
+and in the process the benefit of dedup.
+
+Pure determinism vs allowing roundoff (such as opencl claims strictfp option but its said to work on some computers
+but not others), order of ops, etc... By default things are slightly nondeterministic
+but there should be a puredeterministic mode or some types guarantee it per node.
+
+TODO linkedhashtable with 256 bit buckets (or 384 if store what they hash to)
+andOr various other optimized datastructs for lookup and storing and sharing uf128s
+and bitstrings which 'h' and 'H' (external hash algorithms sha*) point at.
+Buckets might be int32s pointing into an array used as a heap/hashtablecontents.
+For faster computing without dedup/sharing (yet or garbcol before that so never for that node),
+an object in memory using native pointers (java pointers, javascript pointers, C pointers, etc) instead of 128 bit ids
+use them until trigger lazyEvalHash.
+
+TODO use econacyc of com and mem and zapeconacyc, optionally, depending what kinds of sandboxing is needed,
+such as guaranteeing escape from a function called within a microsecond of it running out of allocated
+compute cycles and memory allocation, or statistical sharing of memory cost upward along reverse pointers,
+with a high cost of such zapeconacyc statistics. Allows things like running a virus in debug mode
+purely statelessly without risk if the ufnode VM correctly sandboxes, similar to how a web browser
+can safely go to websites without those websites being able to run programs on your computer
+modifying your private files etc. Javascript's security holes seem to be in the native objects
+outside the javascript memory space such as Flash and DRM video players.
+Ufnode has no such state. All nodes are immutable merkle forest.
+For example, you cant command it to write to stdOut or read from the keyboard.
+There is no input or output, only the fact of a binary forest with certain types of leafs allowed.
+A virus may only execute its next computing step to return another virus but may not modify anything,
+and if you choose to use the new virus it returns, similarly it cant modify itself, only return yet another virus,
+so there is no such thing as a virus, meaning that which statefully modifies things without permission,
+since nothing ever modifies anything.
+An ufnode is a kind of number. It always halts within some guaranteed max time and memory, but its not always turingComplete.
+It is turingComplete if thats run in a loop, but each execution of the loop body always halts, like a debugger.
 */
 public class HashUtil{
 	
@@ -85,13 +140,21 @@ public class HashUtil{
 				d = next;
 			}
 		}
-		out[0] = (('p'&0xff)<<24)|(a&0x00ffffff); //replace first byte with type 'p' meaning its a pair
+		out[0] = (('p'&0xff)<<24)|(a&0x00ffffff); //replace first byte with type 'p' meaning its a pair (&0xff is a no-op but may help compilers optimize if they first see the 2 masks complement? But maybe I'm just trying to defend it cuz thats how I first wrote it, not considering that all ASCII are positive signed bytes. And this wouldnt even be a bottleneck since its outside the loop.)
 		out[1] = b;
 		out[2] = c;
 		out[3] = d;
 	}
 	
-	/** first 8 of "first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311" */
+	/** first 8 of "first 32 bits of the fractional parts of the cube roots of the first 64 primes 2..311"
+	TODO verify these are the bits that last sentence describes, once at boot time using BigDecimal or double, else throw,
+	and the same for the 4 sha256 squareRoot salts for the starting values of a b c d state in the hashFast func.
+	TODO check dotproduct similarity, and audivolv movementScore, to in a basic way verify a near random spread of hashes,
+	and other statistical tests, during development of forks of the hash algorithm (each with 16 bit name).
+	TODO keep a static final var of the smallest sha256 hashcode known and what input hashes to that,
+	among inputs up to 55 bytes (which are 1 sha256 cycle), just to keep track of the security of
+	the few standard leaf types (including sha256 and sha3-256) which ufnode allocates core types (max 256 of them) for.
+	*/
 	private static final int[] sha256CuberootSalts =
 		{0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5};
 	
@@ -172,6 +235,11 @@ public class HashUtil{
 	
 	/** type 'g' (tiny strinG).
 	0-8 utf8 bytes (using 2 0 bytes for codepoint 0, allowing 2*3 bytes or 4 bytes for high codepoints)
+	FIXME do one of:
+	-- put 4 bits of size (0-8) (reducing hash part from 56 to 52 bits),
+	-- pad prefix or pad suffix with byte0s which practically arent used in strings,
+	        but problem will occur in bytestring 0-8 which will also be supported.
+	-- Use 9 type bytes for utf8String and 9 type bytes for byteString (such as chars '0'-'9').
 	*/
 	public static int[] wrap(String s){
 		if(s.length() > 8) throw new Error("Too long: "+s);
